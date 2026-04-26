@@ -9,6 +9,7 @@ A lightweight TikTok LIVE command-line assistant that streams comments with Chin
 - **Live comments** — Print incoming comments in real time, each automatically followed by a Chinese translation
 - **Gift monitoring** — Detect gifts received in the live room and push them into an async processing queue
 - **Sound alerts** — Play the system notification sound (or a custom `.wav` file) when a gift is queued
+- **Global hotkey trigger** — Optionally fire a key (or key combo) `total_diamonds` times per gift event
 - **Gift filtering** — Optionally watch only specific gift names
 - **Graceful shutdown** — `Ctrl+C` cleanly cancels all async tasks
 
@@ -27,6 +28,7 @@ tiktok-assistant/
 - Python 3.11+
 - [TikTokLive](https://github.com/isaackogan/TikTokLive) — TikTok LIVE WebSocket client
 - [deep-translator](https://github.com/nidhaloff/deep-translator) — Google Translate wrapper (no API key needed)
+- [pynput](https://github.com/moses-palmer/pynput) — Global keyboard simulation for hotkey trigger
 
 ## Installation
 
@@ -84,6 +86,20 @@ python main.py some_creator --no-comments
 python main.py some_creator --queue-timeout 2.0
 ```
 
+### Trigger global hotkey per total diamonds
+
+```bash
+python main.py some_creator --trigger-hot-key x
+python main.py some_creator --trigger-hot-key ctrl-v
+python main.py some_creator --trigger-hot-key ctrl+v
+```
+
+For each gift event, hotkey trigger count is:
+
+```text
+total_diamonds = diamonds * repeat_count
+```
+
 ## Arguments
 
 | Argument | Description | Default |
@@ -93,9 +109,11 @@ python main.py some_creator --queue-timeout 2.0
 | `--sound` | Path to a custom `.wav` alert file | system beep |
 | `--no-comments` | Suppress comment output | off |
 | `--queue-timeout` | Seconds to wait after processing each gift | `0.0` |
+| `--trigger-hot-key` | Trigger key spec (`x`, `ctrl-v`, `ctrl+v`) | disabled |
 
 ## Notes
 
 - The target creator must be **live** when you run the script; otherwise the program exits with an `is not live right now` message.
 - Sound alerts use `winsound` and are **Windows only**; the alert step is skipped silently on other platforms.
 - Translation uses the free Google Translate endpoint — no API key required, but an internet connection is needed.
+- Hotkey trigger is optional. If omitted, the app only plays sound and does not simulate keyboard input.

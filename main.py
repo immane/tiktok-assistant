@@ -43,6 +43,14 @@ def parse_args() -> argparse.Namespace:
 		default=0.0,
 		help="Optional delay in seconds after each queued gift is processed.",
 	)
+	parser.add_argument(
+		"--trigger-hot-key",
+		default="",
+		help=(
+			"Optional global key or key combo to trigger per total diamonds, "
+			"e.g. 'x' or 'ctrl-v'. If omitted, only sound is played."
+		),
+	)
 	return parser.parse_args()
 
 
@@ -76,7 +84,12 @@ async def run() -> None:
 	)
 
 	consumer_task = asyncio.create_task(
-		consume_gift_queue(queue, sound_path or None, args.queue_timeout)
+		consume_gift_queue(
+			queue,
+			sound_path or None,
+			args.queue_timeout,
+			args.trigger_hot_key.strip() or None,
+		)
 	)
 
 	stop_event = asyncio.Event()

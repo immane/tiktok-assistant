@@ -9,6 +9,7 @@
 - **实时评论** — 在终端实时打印直播间评论，自动附上中文翻译
 - **礼物监听** — 检测直播间收到的礼物并放入异步队列处理
 - **声音提醒** — 收到礼物时触发系统提示音或自定义 `.wav` 文件
+- **全局按键触发** — 可按每次礼物事件的 `total_diamonds` 次数触发全局按键
 - **礼物过滤** — 可指定只监听特定礼物名称
 - **优雅退出** — `Ctrl+C` 安全关闭，清理所有异步任务
 
@@ -27,6 +28,7 @@ tiktok-assistant/
 - Python 3.11+
 - [TikTokLive](https://github.com/isaackogan/TikTokLive) — TikTok 直播 WebSocket 连接
 - [deep-translator](https://github.com/nidhaloff/deep-translator) — Google 翻译（无需 API Key）
+- [pynput](https://github.com/moses-palmer/pynput) — 全局键盘模拟（热键触发）
 
 ## 安装
 
@@ -84,6 +86,20 @@ python main.py some_creator --no-comments
 python main.py some_creator --queue-timeout 2.0
 ```
 
+### 按 total_diamonds 触发全局按键
+
+```bash
+python main.py some_creator --trigger-hot-key x
+python main.py some_creator --trigger-hot-key ctrl-v
+python main.py some_creator --trigger-hot-key ctrl+v
+```
+
+每次礼物事件的热键触发次数计算方式：
+
+```text
+total_diamonds = diamonds * repeat_count
+```
+
 ## 参数说明
 
 | 参数 | 说明 | 默认值 |
@@ -93,9 +109,11 @@ python main.py some_creator --queue-timeout 2.0
 | `--sound` | 自定义提示音 `.wav` 文件路径 | 系统提示音 |
 | `--no-comments` | 禁止输出评论 | 关闭 |
 | `--queue-timeout` | 每次处理礼物后的冷却时间（秒） | `0.0` |
+| `--trigger-hot-key` | 触发按键规范（`x`、`ctrl-v`、`ctrl+v`） | 关闭 |
 
 ## 注意事项
 
 - 目标主播必须**正在直播**，否则会提示 `is not live right now` 后退出
 - 声音提醒仅支持 Windows（`winsound`），其他平台会跳过播放
 - 翻译通过 Google 免费接口，无需配置任何 Key，但依赖网络连通性
+- 热键触发是可选项；不传 `--trigger-hot-key` 时只播放声音，不会模拟键盘输入

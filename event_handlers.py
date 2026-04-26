@@ -151,11 +151,10 @@ def register_event_handlers(
 
 		repeat_count = event_repeat_count(event)
 		diamonds = event_gift_diamonds(event)
-		total_diamonds = diamonds * repeat_count if diamonds is not None else 0
 		user_name = event_user_name(event)
 		description = f"{user_name} sent {gift_name} x{repeat_count}"
 		if diamonds is not None:
-			description = f"{description} ({diamonds} diamonds each, \033[32m{total_diamonds} total\033[0m)"
+			description = f"{description} ({diamonds} diamonds each)"
 
 		await queue.put(
 			GiftTask(
