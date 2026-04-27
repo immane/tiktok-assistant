@@ -60,7 +60,7 @@ pyinstaller --clean --noconfirm tiktok-assistant.spec
 
 ## 使用方法
 
-### 方式一：Windows 启动脚本（推荐用户使用）
+### 方式一：Windows 启动脚本
 
 编辑 `dist/run.bat`，修改【用户配置区】：
 
@@ -97,7 +97,29 @@ dist\run.bat
 - 配置和代码分离，普通用户只需修改配置区
 - 支持礼物 JSON 规则和点赞阈值热键配置
 
-### 方式二：命令行直接运行
+### 方式二：Linux 启动脚本（`run.sh`）
+
+编辑 `scripts/run.sh`，修改用户配置区：
+
+```bash
+TTA_PYTHON="python3"
+TTA_ENTRY="../main.py"
+TTA_UNIQUE_ID="some_creator_id"
+TTA_SOUND=""
+TTA_QUEUE_TIMEOUT="0"
+TTA_NO_COMMENTS="false"
+TTA_LIKES_THRESHOLD="500"
+TTA_LIKES_TRIGGER_KEY="z"
+```
+
+然后运行：
+
+```bash
+chmod +x scripts/run.sh
+./scripts/run.sh
+```
+
+### 方式三：命令行直接运行
 
 ```bash
 python main.py <主播unique_id>

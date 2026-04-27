@@ -60,7 +60,7 @@ pyinstaller --clean --noconfirm tiktok-assistant.spec
 
 ## Usage
 
-### Option 1: Windows Launcher (Recommended for Users)
+### Option 1: Windows Launcher
 
 Edit `dist/run.bat` and modify the **[User config]** section:
 
@@ -91,7 +91,29 @@ dist\run.bat
 
 Or double-click `dist/run.bat` directly.
 
-### Option 2: Command Line (Direct)
+### Option 2: Linux Launcher (`run.sh`)
+
+Edit `scripts/run.sh` and modify the user config section:
+
+```bash
+TTA_PYTHON="python3"
+TTA_ENTRY="../main.py"
+TTA_UNIQUE_ID="some_creator_id"
+TTA_SOUND=""
+TTA_QUEUE_TIMEOUT="0"
+TTA_NO_COMMENTS="false"
+TTA_LIKES_THRESHOLD="500"
+TTA_LIKES_TRIGGER_KEY="z"
+```
+
+Then run:
+
+```bash
+chmod +x scripts/run.sh
+./scripts/run.sh
+```
+
+### Option 3: Command Line (Direct)
 
 ```bash
 python main.py <creator_unique_id>
