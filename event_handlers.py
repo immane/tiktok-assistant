@@ -1,11 +1,16 @@
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Iterable, Optional
+from typing import Awaitable, Callable, Iterable, Optional
 
 from deep_translator import GoogleTranslator
 from TikTokLive import TikTokLiveClient
 from TikTokLive.events import CommentEvent, ConnectEvent, DisconnectEvent, GiftEvent, LiveEndEvent
+
+try:
+	from TikTokLive.events import LikeEvent
+except Exception:
+	LikeEvent = None
 
 
 @dataclass(slots=True)
@@ -102,6 +107,86 @@ def format_timestamp(value: datetime) -> str:
 	return value.strftime("%H:%M:%S")
 
 
+def _likes_as_int(value: object) -> Optional[int]:
+	if isinstance(value, int):
+		return value
+	if isinstance(value, str):
+		try:
+			return int(value)
+		except ValueError:
+			return None
+	return None
+
+
+def event_total_likes(event: object) -> Optional[int]:
+	for attr in ("total", "total_likes", "like_count", "likes"):
+		value = _likes_as_int(safe_getattr(event, attr))
+		if value is not None and value > 0:
+			return value
+
+	stats = safe_getattr(event, "room_stats")
+	if stats is not None:
+		for attr in ("total_like", "like_count", "likes"):
+			value = _likes_as_int(safe_getattr(stats, attr))
+			if value is not None and value > 0:
+				return value
+
+	return None
+
+
+def event_like_increment(event: object) -> int:
+	for attr in ("count", "like_count", "likes"):
+		value = _likes_as_int(safe_getattr(event, attr))
+		if value is not None and value > 0:
+			return value
+	return 1
+
+
+class LikesProgressReporter:
+	def __init__(self, interval_seconds: float = 30.0) -> None:
+		self._interval_seconds = interval_seconds
+		self._running_likes = 0
+		self._report_task: Optional[asyncio.Task[None]] = None
+		self._active = False
+
+	def start(self) -> None:
+		if self._report_task is not None:
+			return
+		self._active = True
+		self._report_task = asyncio.create_task(self._run())
+
+	async def stop(self) -> None:
+		self._active = False
+		if self._report_task is None:
+			return
+		self._report_task.cancel()
+		try:
+			await self._report_task
+		except asyncio.CancelledError:
+			pass
+		self._report_task = None
+
+	async def _run(self) -> None:
+		from main import BLUE, RESET
+
+		try:
+			while self._active:
+				await asyncio.sleep(self._interval_seconds)
+				print(
+					f"[{format_timestamp(datetime.now())}] {BLUE}[likes]{RESET} total={self._running_likes}",
+					flush=True,
+				)
+		except asyncio.CancelledError:
+			pass
+
+	async def on_like(self, event: object) -> None:
+		total_likes = event_total_likes(event)
+		if total_likes is not None:
+			self._running_likes = max(self._running_likes, total_likes)
+		else:
+			self._running_likes += event_like_increment(event)
+
+
 async def translate_to_chinese(text: str) -> Optional[str]:
 	if not text or not text.strip():
 		return None
@@ -122,12 +207,15 @@ def register_event_handlers(
 	queue: asyncio.Queue[GiftTask],
 	watched_gifts: set[str],
 	show_comments: bool,
+	likes_trigger: Optional[Callable[[object], Awaitable[None]]] = None,
 ) -> None:
 	# Import colors here to avoid circular import
 	from main import GREEN, RESET
+	likes_reporter = LikesProgressReporter()
 
 	@client.on(ConnectEvent)
 	async def on_connect(_: ConnectEvent) -> None:
+		likes_reporter.start()
 		print(f"[system] Connected to @{unique_id}", flush=True)
 
 	@client.on(CommentEvent)
@@ -174,10 +262,21 @@ def register_event_handlers(
 			flush=True,
 		)
 
+	if LikeEvent is not None:
+		@client.on(LikeEvent)
+		async def on_like(event: object) -> None:
+			await likes_reporter.on_like(event)
+			if likes_trigger:
+				await likes_trigger(event)
+	elif likes_trigger and LikeEvent is None:
+		print("[system] Likes trigger unavailable: LikeEvent is not supported by this TikTokLive version", flush=True)
+
 	@client.on(LiveEndEvent)
 	async def on_live_end(_: LiveEndEvent) -> None:
+		await likes_reporter.stop()
 		print("[system] Live ended", flush=True)
 
 	@client.on(DisconnectEvent)
 	async def on_disconnect(_: DisconnectEvent) -> None:
+		await likes_reporter.stop()
 		print("[system] Disconnected", flush=True)

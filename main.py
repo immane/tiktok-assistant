@@ -3,16 +3,18 @@ import asyncio
 import signal
 import sys
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Awaitable, Callable, Iterable, Optional
 
 from TikTokLive import TikTokLiveClient
 from TikTokLive.client.errors import UserNotFoundError, UserOfflineError
 
 from event_handlers import GiftTask, register_event_handlers
 from gift_queue import consume_gift_queue
+from likes_trigger import create_likes_trigger_handler
 
 # ANSI color codes for terminal output
 GREEN = "\033[32m"
+BLUE = "\033[34m"
 YELLOW = "\033[33m"
 RESET = "\033[0m"
 
@@ -60,6 +62,17 @@ def parse_args() -> argparse.Namespace:
 			"and optional 'repeats' (int, defaults to diamonds count)."
 		),
 	)
+	parser.add_argument(
+		"--likes-threshold",
+		type=int,
+		default=500,
+		help="Trigger likes hotkey every N likes (default: 500).",
+	)
+	parser.add_argument(
+		"--likes-trigger-key",
+		default="",
+		help="Optional key/combo to trigger when likes reach each threshold, e.g. 'x' or 'ctrl-v'.",
+	)
 	return parser.parse_args()
 
 
@@ -77,6 +90,22 @@ async def run() -> None:
 	args = parse_args()
 	watched_gifts = normalize_names(args.gift_names)
 	sound_path = str(Path(args.sound).expanduser().resolve()) if args.sound else ""
+	likes_threshold = max(args.likes_threshold, 1)
+	likes_trigger_key = args.likes_trigger_key.strip()
+	likes_trigger: Optional[Callable[[object], Awaitable[None]]] = None
+
+	if likes_trigger_key:
+		try:
+			likes_trigger = create_likes_trigger_handler(
+				trigger_key=likes_trigger_key,
+				threshold=likes_threshold,
+			)
+			print(
+				f"[system] Likes trigger enabled: {likes_trigger_key} (threshold={likes_threshold})",
+				flush=True,
+			)
+		except ValueError as exc:
+			print(f"[system] Invalid --likes-trigger-key: {exc}", flush=True)
 
 	if sound_path and not Path(sound_path).exists():
 		raise FileNotFoundError(f"Sound file not found: {sound_path}")
@@ -90,6 +119,7 @@ async def run() -> None:
 		queue=queue,
 		watched_gifts=watched_gifts,
 		show_comments=not args.no_comments,
+		likes_trigger=likes_trigger,
 	)
 
 	consumer_task = asyncio.create_task(

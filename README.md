@@ -1,6 +1,6 @@
 # TikTok Live Assistant
 
-A lightweight TikTok LIVE command-line assistant that streams comments with Chinese translation, monitors gift events, triggers sound alerts, and supports flexible hotkey automation with concurrent rule execution.
+A lightweight TikTok LIVE command-line assistant that streams comments with Chinese translation, monitors gift events, reports live like totals, triggers sound alerts, and supports flexible hotkey automation with concurrent gift rules plus like-threshold hotkeys.
 
 > 中文文档：[README.zh-cn.md](README.zh-cn.md)
 
@@ -10,6 +10,8 @@ A lightweight TikTok LIVE command-line assistant that streams comments with Chin
 - **Gift monitoring** — Detect gifts received in the live room and push them into an async processing queue
 - **Sound alerts** — Play the system notification sound (or a custom `.wav` file) when a gift is queued
 - **Smart hotkey trigger** — Fire hotkeys based on gift name and diamond count with concurrent rule execution and optional repeat counts
+- **Like total reporting** — Print the current live-room like total every 30 seconds in blue
+- **Like threshold hotkey** — Optionally fire one hotkey when total likes cross each configured threshold
 - **Gift filtering** — Optionally watch only specific gift names
 - **UTF-8 console support** — Built-in Windows 10 UTF-8 console fix (black background + white text)
 - **Graceful shutdown** — `Ctrl+C` cleanly cancels all async tasks
@@ -19,10 +21,13 @@ A lightweight TikTok LIVE command-line assistant that streams comments with Chin
 ```
 tiktok-assistant/
 ├── main.py            # Entry point, argument parsing, connection lifecycle
-├── event_handlers.py  # TikTok event callbacks (comments, gifts, connect/disconnect)
+├── event_handlers.py  # TikTok event callbacks (comments, gifts, likes, connect/disconnect)
 ├── gift_queue.py      # Gift queue consumer, trigger rule parsing, and sound playback
+├── likes_trigger.py   # Like-threshold hotkey logic
+├── dist/
+│   └── run.bat        # Packaged Windows launcher with embedded JSON config
 ├── scripts/
-│   └── run_win10.ps1  # Windows 10 launcher with built-in JSON config
+│   └── run.bat        # Source Windows launcher template
 └── requirements.txt   # Python dependencies
 ```
 
@@ -55,36 +60,36 @@ pyinstaller --clean --noconfirm tiktok-assistant.spec
 
 ## Usage
 
-### Option 1: Windows 10 Launcher (Recommended for Users)
+### Option 1: Windows Launcher (Recommended for Users)
 
-Edit `scripts/run_win10.ps1` and modify the **【用户配置区】** section:
+Edit `dist/run.bat` and modify the **【用户配置区】** section:
 
-```powershell
-$exePath = "..\dist\tiktok-assistant.exe"
-$configJson = @'
-{
-  "unique_id": "some_creator",
-  "sound": "",
-  "queue_timeout": 0,
-  "no_comments": false,
-  "triggers": [
-    {"trigger": "[default]", "action-key": "x"},
-    {"trigger": "Rosa", "action-key": "x"},
-    {"trigger": "Glasses", "action-key": "x"},
-    {"trigger": "Glasses", "action-key": "c", "repeats": 5},
-    {"trigger": "Glasses", "action-key": "ctrl-v", "repeats": 1}
-  ]
-}
-'@
+```bat
+set TTA_EXE_PATH=.\tiktok-assistant.exe
+set TTA_UNIQUE_ID=some_creator_id
+set TTA_SOUND=
+set TTA_QUEUE_TIMEOUT=0
+set TTA_NO_COMMENTS=false
+set TTA_LIKES_THRESHOLD=500
+set TTA_LIKES_TRIGGER_KEY=z
+
+goto after_triggers_json
+:: TTA_TRIGGERS_JSON_BEGIN
+[
+  {"trigger":"Rose","action-key":"x"},
+  {"trigger":"[default]","action-key":"x"}
+]
+:: TTA_TRIGGERS_JSON_END
+:after_triggers_json
 ```
 
 Then run:
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run_win10.ps1
+```bat
+dist\run.bat
 ```
 
-Or double-click the script directly (may require execution policy adjustment).
+Or double-click `dist/run.bat` directly.
 
 ### Option 2: Command Line (Direct)
 
@@ -133,6 +138,14 @@ python main.py some_creator --triggers '[
 ]'
 ```
 
+**Like threshold hotkey:**
+
+```bash
+python main.py some_creator --likes-threshold 500 --likes-trigger-key z
+```
+
+This fires `z` once whenever the live-room total likes cross 500, 1000, 1500, and so on.
+
 ## Arguments
 
 | Argument | Description | Default |
@@ -143,6 +156,8 @@ python main.py some_creator --triggers '[
 | `--no-comments` | Suppress comment output | off |
 | `--queue-timeout` | Seconds to wait after processing each gift | `0.0` |
 | `--triggers` | JSON array of trigger rules (see below) | disabled |
+| `--likes-threshold` | Like threshold used for hotkey triggering | `500` |
+| `--likes-trigger-key` | Optional key/combo fired once when each likes threshold is crossed | disabled |
 
 ### `--triggers` JSON Format
 
@@ -183,5 +198,7 @@ Behavior:
 - The target creator must be **live** when you run the script; otherwise the program exits with an `is not live right now` message.
 - Sound alerts use `winsound` and are **Windows only**; the alert step is skipped silently on other platforms.
 - Translation uses the free Google Translate endpoint — no API key required, but an internet connection is needed.
-- `run_win10.ps1` automatically sets console to black background with white text to avoid Windows 10's default blue console theme.
+- The console prints the current live-room like total every 30 seconds in blue.
+- Like-threshold hotkeys fire at most once per incoming like event, even if a single event crosses multiple thresholds.
+- `dist/run.bat` sets the console to UTF-8 with a black background and white text to avoid Windows 10 display issues.
 

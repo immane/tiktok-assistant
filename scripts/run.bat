@@ -9,7 +9,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 :: 可选：绝对路径 或 相对路径（相对于本脚本所在目录）
 :: 例子：绝对路径 "D:\Development\Python\tiktok-assistant\dist\tiktok-assistant.exe"
 ::      相对路径 "..\dist\tiktok-assistant.exe"
-set TTA_EXE_PATH=..\dist\tiktok-assistant.exe
+set TTA_EXE_PATH=.\tiktok-assistant.exe
 
 :: 自定义规则配置 JSON（修改这里）
 ::
@@ -38,6 +38,8 @@ set TTA_EXE_PATH=..\dist\tiktok-assistant.exe
 :: - sound: 留空使用系统提示音；填写 .wav 路径使用自定义声音
 :: - queue_timeout: 每个礼物处理完后的延迟秒数，0 表示不延迟
 :: - no_comments: true=不显示评论，false=显示评论
+:: - likes_threshold: 点赞总数每跨过多少触发一次点赞热键
+:: - likes_trigger_key: 点赞阈值触发时按下的按键；留空则只统计点赞，不触发按键
 
 set TTA_UNIQUE_ID=some_creator_id
 
@@ -62,6 +64,8 @@ goto after_triggers_json
 set TTA_SOUND=
 set TTA_QUEUE_TIMEOUT=0
 set TTA_NO_COMMENTS=false
+set TTA_LIKES_THRESHOLD=50
+set TTA_LIKES_TRIGGER_KEY=z
 
 :: ============================================================================
 :: ❌ 不要修改以下代码
@@ -119,15 +123,15 @@ echo [system] Running with embedded JSON config...
 
 if /I "%TTA_NO_COMMENTS%"=="true" (
   if "%TTA_SOUND%"=="" (
-    "%EXE_PATH%" "%TTA_UNIQUE_ID%" --queue-timeout "%TTA_QUEUE_TIMEOUT%" --triggers "%TTA_TRIGGERS_ARG%" --no-comments %*
+    "%EXE_PATH%" "%TTA_UNIQUE_ID%" --queue-timeout "%TTA_QUEUE_TIMEOUT%" --triggers "%TTA_TRIGGERS_ARG%" --no-comments --likes-threshold "%TTA_LIKES_THRESHOLD%" --likes-trigger-key "%TTA_LIKES_TRIGGER_KEY%" %*
   ) else (
-    "%EXE_PATH%" "%TTA_UNIQUE_ID%" --queue-timeout "%TTA_QUEUE_TIMEOUT%" --triggers "%TTA_TRIGGERS_ARG%" --no-comments --sound "%TTA_SOUND%" %*
+    "%EXE_PATH%" "%TTA_UNIQUE_ID%" --queue-timeout "%TTA_QUEUE_TIMEOUT%" --triggers "%TTA_TRIGGERS_ARG%" --no-comments --sound "%TTA_SOUND%" --likes-threshold "%TTA_LIKES_THRESHOLD%" --likes-trigger-key "%TTA_LIKES_TRIGGER_KEY%" %*
   )
 ) else (
   if "%TTA_SOUND%"=="" (
-    "%EXE_PATH%" "%TTA_UNIQUE_ID%" --queue-timeout "%TTA_QUEUE_TIMEOUT%" --triggers "%TTA_TRIGGERS_ARG%" %*
+    "%EXE_PATH%" "%TTA_UNIQUE_ID%" --queue-timeout "%TTA_QUEUE_TIMEOUT%" --triggers "%TTA_TRIGGERS_ARG%" --likes-threshold "%TTA_LIKES_THRESHOLD%" --likes-trigger-key "%TTA_LIKES_TRIGGER_KEY%" %*
   ) else (
-    "%EXE_PATH%" "%TTA_UNIQUE_ID%" --queue-timeout "%TTA_QUEUE_TIMEOUT%" --triggers "%TTA_TRIGGERS_ARG%" --sound "%TTA_SOUND%" %*
+    "%EXE_PATH%" "%TTA_UNIQUE_ID%" --queue-timeout "%TTA_QUEUE_TIMEOUT%" --triggers "%TTA_TRIGGERS_ARG%" --sound "%TTA_SOUND%" --likes-threshold "%TTA_LIKES_THRESHOLD%" --likes-trigger-key "%TTA_LIKES_TRIGGER_KEY%" %*
   )
 )
 

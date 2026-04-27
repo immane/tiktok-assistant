@@ -1,6 +1,6 @@
 # TikTok Live Assistant
 
-一个轻量级的 TikTok 直播命令行助手，实时显示评论（附中文翻译）、监听礼物事件并触发灵活的热键自动化。支持基于礼物名称的规则匹配、多规则并发执行和自定义按键重复次数。
+一个轻量级的 TikTok 直播命令行助手，实时显示评论（附中文翻译）、监听礼物事件、定时输出本场点赞总数，并触发灵活的热键自动化。支持基于礼物名称的规则匹配、多规则并发执行，以及基于点赞阈值的单次热键触发。
 
 > English version: [README.md](README.md)
 
@@ -10,6 +10,8 @@
 - **礼物监听** — 检测直播间收到的礼物并放入异步队列处理
 - **声音提醒** — 收到礼物时触发系统提示音或自定义 `.wav` 文件
 - **智能热键触发** — 基于礼物名称的 JSON 规则，支持多规则并发执行、按次数重复触发
+- **点赞总数播报** — 每 30 秒用蓝色输出一次当前直播间点赞总数
+- **点赞阈值热键** — 点赞总数每跨过一个阈值时，可选触发一次热键
 - **礼物过滤** — 可指定只监听特定礼物名称
 - **UTF-8 控制台支持** — Windows 10 内置 UTF-8 修复（黑底白字）
 - **优雅退出** — `Ctrl+C` 安全关闭，清理所有异步任务
@@ -19,10 +21,13 @@
 ```
 tiktok-assistant/
 ├── main.py            # 启动入口、参数解析、连接生命周期管理
-├── event_handlers.py  # TikTok 事件回调（评论、礼物、连接状态）
+├── event_handlers.py  # TikTok 事件回调（评论、礼物、点赞、连接状态）
 ├── gift_queue.py      # 礼物队列消费、规则解析、声音播放
+├── likes_trigger.py   # 点赞阈值热键触发逻辑
+├── dist/
+│   └── run.bat        # 打包后的 Windows 启动脚本，内置 JSON 配置
 ├── scripts/
-│   └── run_win10.ps1  # Windows 10 启动脚本，内置 JSON 配置
+│   └── run.bat        # 源码环境下的 Windows 启动脚本模板
 └── requirements.txt   # 依赖声明
 ```
 
@@ -55,45 +60,42 @@ pyinstaller --clean --noconfirm tiktok-assistant.spec
 
 ## 使用方法
 
-### 方式一：Windows 10 启动脚本（推荐用户使用）
+### 方式一：Windows 启动脚本（推荐用户使用）
 
-编辑 `scripts/run_win10.ps1`，修改【用户配置区】：
+编辑 `dist/run.bat`，修改【用户配置区】：
 
-```powershell
-# EXE 路径（相对或绝对均可）
-$exePath = "..\dist\tiktok-assistant.exe"
+```bat
+set TTA_EXE_PATH=.\tiktok-assistant.exe
+set TTA_UNIQUE_ID=some_creator_id
+set TTA_SOUND=
+set TTA_QUEUE_TIMEOUT=0
+set TTA_NO_COMMENTS=false
+set TTA_LIKES_THRESHOLD=500
+set TTA_LIKES_TRIGGER_KEY=z
 
-# 自定义配置 JSON（在这里修改）
-$configJson = @'
-{
-  "unique_id": "your_creator_name",
-  "sound": "",
-  "queue_timeout": 0,
-  "no_comments": false,
-  "triggers": [
-    {"trigger": "[default]", "action-key": "x"},
-    {"trigger": "Rosa", "action-key": "x"},
-    {"trigger": "Glasses", "action-key": "x"},
-    {"trigger": "Glasses", "action-key": "c", "repeats": 5},
-    {"trigger": "Glasses", "action-key": "ctrl-v", "repeats": 1}
-  ]
-}
-'@
+goto after_triggers_json
+:: TTA_TRIGGERS_JSON_BEGIN
+[
+  {"trigger":"Rose","action-key":"x"},
+  {"trigger":"[default]","action-key":"x"}
+]
+:: TTA_TRIGGERS_JSON_END
+:after_triggers_json
 ```
 
 然后运行：
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run_win10.ps1
+```bat
+dist\run.bat
 ```
 
-或直接双击脚本（可能需要调整执行策略）。
+或直接双击 `dist/run.bat`。
 
 **脚本特性：**
-- ✅ 自动检测路径（相对或绝对）
-- ✅ 黑底白字控制台（避免 Win10 蓝底）
-- ✅ 自动 UTF-8 编码处理
-- ✅ 配置和代码分离，用户只改 JSON
+- 自动检测路径（相对或绝对）
+- 黑底白字控制台，自动切换 UTF-8 编码
+- 配置和代码分离，普通用户只需修改配置区
+- 支持礼物 JSON 规则和点赞阈值热键配置
 
 ### 方式二：命令行直接运行
 
@@ -151,6 +153,14 @@ python main.py some_creator --triggers '[
 ]'
 ```
 
+### 使用点赞阈值触发热键
+
+```bash
+python main.py some_creator --likes-threshold 500 --likes-trigger-key z
+```
+
+表示直播间总点赞数每跨过 500、1000、1500... 时，触发一次 `z` 键。
+
 ## 参数详解
 
 | 参数 | 说明 | 默认值 |
@@ -161,6 +171,8 @@ python main.py some_creator --triggers '[
 | `--no-comments` | 禁止输出评论 | 关闭 |
 | `--queue-timeout` | 每次处理礼物后的冷却时间（秒） | `0.0` |
 | `--triggers` | JSON 格式的规则数组（详见下文） | 关闭 |
+| `--likes-threshold` | 点赞阈值热键使用的阈值 | `500` |
+| `--likes-trigger-key` | 点赞总数每跨过一个阈值时触发一次的按键/组合键 | 关闭 |
 
 ## JSON 触发规则详解
 
