@@ -1,4 +1,6 @@
 import asyncio
+import json
+from dataclasses import dataclass
 from typing import Optional
 
 from event_handlers import GiftTask, format_timestamp
@@ -102,38 +104,100 @@ async def play_alert(sound_path: Optional[str]) -> None:
 	winsound.MessageBeep(winsound.MB_ICONASTERISK)
 
 
+@dataclass(slots=True)
+class TriggerRule:
+	trigger: str          # gift name (casefolded) or "[default]"
+	keys: list[Key | str]
+	repeats: Optional[int]  # None means use task.diamonds
+	raw_action_key: str
+
+
+def parse_triggers_json(json_str: str) -> list[TriggerRule]:
+	"""Parse --triggers JSON array into a list of TriggerRule."""
+	try:
+		items = json.loads(json_str)
+		if not isinstance(items, list):
+			raise ValueError("--triggers must be a JSON array")
+	except json.JSONDecodeError as exc:
+		raise ValueError(f"--triggers is not valid JSON: {exc}") from exc
+
+	rules: list[TriggerRule] = []
+	for i, item in enumerate(items):
+		if not isinstance(item, dict):
+			raise ValueError(f"--triggers item {i} must be an object")
+		trigger = item.get("trigger", "")
+		action_key = item.get("action-key", "")
+		if not trigger:
+			raise ValueError(f"--triggers item {i} missing 'trigger'")
+		if not action_key:
+			raise ValueError(f"--triggers item {i} missing 'action-key'")
+		raw_repeats = item.get("repeats")
+		repeats: Optional[int] = None
+		if raw_repeats is not None:
+			if not isinstance(raw_repeats, int) or raw_repeats < 0:
+				raise ValueError(f"--triggers item {i} 'repeats' must be a non-negative int")
+			repeats = raw_repeats
+		keys = parse_trigger_hot_key(action_key)
+		normalized_trigger = trigger if trigger == "[default]" else trigger.strip().casefold()
+		rules.append(TriggerRule(trigger=normalized_trigger, keys=keys, repeats=repeats, raw_action_key=action_key))
+	return rules
+
+
+async def _fire_rule(rule: TriggerRule, diamonds: int, created_at: object) -> None:
+	# Import colors here to avoid circular import
+	from main import YELLOW, RESET
+	
+	times = rule.repeats if rule.repeats is not None else diamonds
+	if times <= 0:
+		return
+	await asyncio.to_thread(fire_hot_key, rule.keys, times)
+	print(
+		f"[{format_timestamp(created_at)}] {YELLOW}[hotkey-trigger]{RESET} fired '{rule.raw_action_key}' x{times}",
+		flush=True,
+	)
+
+
 async def consume_gift_queue(
 	queue: asyncio.Queue[GiftTask],
 	sound_path: Optional[str],
 	cooldown: float,
-	trigger_hot_key: Optional[str],
+	triggers_json: Optional[str],
 ) -> None:
-	parsed_hot_key: Optional[list[Key | str]] = None
-	if trigger_hot_key:
+	rules: list[TriggerRule] = []
+	if triggers_json:
 		try:
-			parsed_hot_key = parse_trigger_hot_key(trigger_hot_key)
-			print(f"[system] Hot key trigger enabled: {trigger_hot_key}", flush=True)
+			rules = parse_triggers_json(triggers_json)
+			print(f"[system] Loaded {len(rules)} trigger rule(s)", flush=True)
 		except ValueError as exc:
-			print(f"[system] Invalid --trigger-hot-key: {exc}", flush=True)
-			parsed_hot_key = None
+			print(f"[system] Invalid --triggers: {exc}", flush=True)
+
+	default_rules = [r for r in rules if r.trigger == "[default]"]
+	named_rules = [r for r in rules if r.trigger != "[default]"]
 
 	while True:
 		task = await queue.get()
 		try:
+			"""
 			print(
 				f"[{format_timestamp(task.created_at)}] [gift-queue] {task.description}",
 				flush=True,
 			)
+			"""
 			await play_alert(sound_path)
 
-			# Calculate total diamonds for the gift task, treating missing diamond info as 0
-			total_diamonds = (task.diamonds or 0) * max(task.repeat_count, 1)
+			total_diamonds = task.diamonds or 0
+			norm_gift = task.gift_name.strip().casefold()
 
-			if parsed_hot_key and total_diamonds > 0:
-				await asyncio.to_thread(fire_hot_key, parsed_hot_key, total_diamonds)
-				print(
-					f"[{format_timestamp(task.created_at)}] [hotkey-trigger] fired '{trigger_hot_key}' x{total_diamonds}",
-					flush=True,
+			# Find matching named rules for this gift
+			matched = [r for r in named_rules if r.trigger == norm_gift]
+
+			# [default] fires only when no named rule matched
+			active_rules = matched if matched else default_rules
+
+			if active_rules and total_diamonds >= 0:
+				# Fire all active rules concurrently
+				await asyncio.gather(
+					*[_fire_rule(r, total_diamonds, task.created_at) for r in active_rules]
 				)
 
 			if cooldown > 0:

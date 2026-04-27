@@ -11,6 +11,11 @@ from TikTokLive.client.errors import UserNotFoundError, UserOfflineError
 from event_handlers import GiftTask, register_event_handlers
 from gift_queue import consume_gift_queue
 
+# ANSI color codes for terminal output
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+RESET = "\033[0m"
+
 
 def parse_args() -> argparse.Namespace:
 	parser = argparse.ArgumentParser(
@@ -44,11 +49,15 @@ def parse_args() -> argparse.Namespace:
 		help="Optional delay in seconds after each queued gift is processed.",
 	)
 	parser.add_argument(
-		"--trigger-hot-key",
+		"--triggers",
 		default="",
+		metavar="JSON",
 		help=(
-			"Optional global key or key combo to trigger per total diamonds, "
-			"e.g. 'x' or 'ctrl-v'. If omitted, only sound is played."
+			"Optional JSON array of trigger rules, e.g. "
+			"'[{\"trigger\":\"[default]\",\"action-key\":\"x\"}]'. "
+			"Each rule has 'trigger' (gift name or '[default]'), "
+			"'action-key' (e.g. 'x' or 'ctrl-v'), "
+			"and optional 'repeats' (int, defaults to diamonds count)."
 		),
 	)
 	return parser.parse_args()
@@ -88,7 +97,7 @@ async def run() -> None:
 			queue,
 			sound_path or None,
 			args.queue_timeout,
-			args.trigger_hot_key.strip() or None,
+			args.triggers.strip() or None,
 		)
 	)
 

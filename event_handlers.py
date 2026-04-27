@@ -123,6 +123,9 @@ def register_event_handlers(
 	watched_gifts: set[str],
 	show_comments: bool,
 ) -> None:
+	# Import colors here to avoid circular import
+	from main import GREEN, RESET
+
 	@client.on(ConnectEvent)
 	async def on_connect(_: ConnectEvent) -> None:
 		print(f"[system] Connected to @{unique_id}", flush=True)
@@ -152,7 +155,7 @@ def register_event_handlers(
 		repeat_count = event_repeat_count(event)
 		diamonds = event_gift_diamonds(event)
 		user_name = event_user_name(event)
-		description = f"{user_name} sent {gift_name} x{repeat_count}"
+		description = f"{user_name} sent <{gift_name}> x{repeat_count}"
 		if diamonds is not None:
 			description = f"{description} ({diamonds} diamonds each)"
 
@@ -167,7 +170,7 @@ def register_event_handlers(
 			)
 		)
 		print(
-			f"[{format_timestamp(datetime.now())}] [\033[32mgift-detected\033[0m] queued -> {description}",
+			f"[{format_timestamp(datetime.now())}] {GREEN}[gift-detected]{RESET} queued -> {description}",
 			flush=True,
 		)
 
