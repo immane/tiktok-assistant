@@ -62,7 +62,7 @@ pyinstaller --clean --noconfirm tiktok-assistant.spec
 
 ### Option 1: Windows Launcher (Recommended for Users)
 
-Edit `dist/run.bat` and modify the **【用户配置区】** section:
+Edit `dist/run.bat` and modify the **[User config]** section:
 
 ```bat
 set TTA_EXE_PATH=.\tiktok-assistant.exe
