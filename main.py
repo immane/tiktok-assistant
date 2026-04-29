@@ -154,9 +154,16 @@ async def run() -> None:
 	)
 
 	if shutdown_task in done and not client_task.done():
-		client.stop()
-		await client.disconnect()
-		await client_task
+		try:
+			client.stop()
+		except Exception as exc:
+			print(f"[system] Client stop error: {exc}", flush=True)
+		try:
+			await client.disconnect()
+		except Exception as exc:
+			print(f"[system] Client disconnect error: {exc}", flush=True)
+		with contextlib.suppress(Exception):
+			await client_task
 	elif client_task in done:
 		try:
 			client_task.result()
@@ -173,7 +180,7 @@ async def run() -> None:
 			await pending_task
 
 	consumer_task.cancel()
-	with contextlib.suppress(asyncio.CancelledError):
+	with contextlib.suppress(asyncio.CancelledError, Exception):
 		await consumer_task
 
 

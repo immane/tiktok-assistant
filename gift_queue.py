@@ -150,11 +150,14 @@ async def _fire_rule(rule: TriggerRule, diamonds: int, created_at: object) -> No
 	times = rule.repeats if rule.repeats is not None else diamonds
 	if times <= 0:
 		return
-	await asyncio.to_thread(fire_hot_key, rule.keys, times)
-	print(
-		f"[{format_timestamp(created_at)}] {YELLOW}[hotkey-trigger]{RESET} fired '{rule.raw_action_key}' x{times}",
-		flush=True,
-	)
+	try:
+		await asyncio.to_thread(fire_hot_key, rule.keys, times)
+		print(
+			f"[{format_timestamp(created_at)}] {YELLOW}[hotkey-trigger]{RESET} fired '{rule.raw_action_key}' x{times}",
+			flush=True,
+		)
+	except Exception as exc:
+		print(f"[system] Hotkey trigger failed ({rule.raw_action_key}): {exc}", flush=True)
 
 
 async def consume_gift_queue(
@@ -183,7 +186,10 @@ async def consume_gift_queue(
 				flush=True,
 			)
 			"""
-			await play_alert(sound_path)
+			try:
+				await play_alert(sound_path)
+			except Exception as exc:
+				print(f"[system] Alert playback failed: {exc}", flush=True)
 
 			total_diamonds = task.diamonds or 0
 			norm_gift = task.gift_name.strip().casefold()
@@ -202,5 +208,7 @@ async def consume_gift_queue(
 
 			if cooldown > 0:
 				await asyncio.sleep(cooldown)
+		except Exception as exc:
+			print(f"[system] Gift queue processing error: {exc}", flush=True)
 		finally:
 			queue.task_done()

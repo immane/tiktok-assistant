@@ -83,12 +83,15 @@ class LikesThresholdTrigger:
 		if not should_trigger:
 			return
 
-		await asyncio.to_thread(fire_hot_key, self._parsed_key, 1)
-		print(
-			f"[{_format_timestamp(datetime.now())}] {YELLOW}[likes-trigger]{RESET} "
-			f"fired '{self._trigger_key}' x1 (likes={current_likes}, threshold={self._threshold})",
-			flush=True,
-		)
+		try:
+			await asyncio.to_thread(fire_hot_key, self._parsed_key, 1)
+			print(
+				f"[{_format_timestamp(datetime.now())}] {YELLOW}[likes-trigger]{RESET} "
+				f"fired '{self._trigger_key}' x1 (likes={current_likes}, threshold={self._threshold})",
+				flush=True,
+			)
+		except Exception as exc:
+			print(f"[system] Likes trigger failed ({self._trigger_key}): {exc}", flush=True)
 
 
 def create_likes_trigger_handler(

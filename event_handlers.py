@@ -220,54 +220,63 @@ def register_event_handlers(
 
 	@client.on(CommentEvent)
 	async def on_comment(event: CommentEvent) -> None:
-		if not show_comments:
-			return
+		try:
+			if not show_comments:
+				return
 
-		comment_text = getattr(event, "comment", "")
-		translation = await translate_to_chinese(comment_text)
-		suffix = f"（{translation}）" if translation else ""
-		print(
-			f"[{format_timestamp(datetime.now())}] [comment] {event_user_name(event)}: {comment_text}{suffix}",
-			flush=True,
-		)
+			comment_text = getattr(event, "comment", "")
+			translation = await translate_to_chinese(comment_text)
+			suffix = f"（{translation}）" if translation else ""
+			print(
+				f"[{format_timestamp(datetime.now())}] [comment] {event_user_name(event)}: {comment_text}{suffix}",
+				flush=True,
+			)
+		except Exception as exc:
+			print(f"[system] Comment handler error: {exc}", flush=True)
 
 	@client.on(GiftEvent)
 	async def on_gift(event: GiftEvent) -> None:
-		if not is_final_gift_event(event):
-			return
+		try:
+			if not is_final_gift_event(event):
+				return
 
-		gift_name = event_gift_name(event)
-		if watched_gifts and gift_name.casefold() not in watched_gifts:
-			return
+			gift_name = event_gift_name(event)
+			if watched_gifts and gift_name.casefold() not in watched_gifts:
+				return
 
-		repeat_count = event_repeat_count(event)
-		diamonds = event_gift_diamonds(event)
-		user_name = event_user_name(event)
-		description = f"{user_name} sent <{gift_name}> x{repeat_count}"
-		if diamonds is not None:
-			description = f"{description} ({diamonds} diamonds each)"
+			repeat_count = event_repeat_count(event)
+			diamonds = event_gift_diamonds(event)
+			user_name = event_user_name(event)
+			description = f"{user_name} sent <{gift_name}> x{repeat_count}"
+			if diamonds is not None:
+				description = f"{description} ({diamonds} diamonds each)"
 
-		await queue.put(
-			GiftTask(
-				created_at=datetime.now(),
-				user_name=user_name,
-				gift_name=gift_name,
-				repeat_count=repeat_count,
-				diamonds=diamonds,
-				description=description,
+			await queue.put(
+				GiftTask(
+					created_at=datetime.now(),
+					user_name=user_name,
+					gift_name=gift_name,
+					repeat_count=repeat_count,
+					diamonds=diamonds,
+					description=description,
+				)
 			)
-		)
-		print(
-			f"[{format_timestamp(datetime.now())}] {GREEN}[gift-detected]{RESET} queued -> {description}",
-			flush=True,
-		)
+			print(
+				f"[{format_timestamp(datetime.now())}] {GREEN}[gift-detected]{RESET} queued -> {description}",
+				flush=True,
+			)
+		except Exception as exc:
+			print(f"[system] Gift handler error: {exc}", flush=True)
 
 	if LikeEvent is not None:
 		@client.on(LikeEvent)
 		async def on_like(event: object) -> None:
-			await likes_reporter.on_like(event)
-			if likes_trigger:
-				await likes_trigger(event)
+			try:
+				await likes_reporter.on_like(event)
+				if likes_trigger:
+					await likes_trigger(event)
+			except Exception as exc:
+				print(f"[system] Like handler error: {exc}", flush=True)
 	elif likes_trigger and LikeEvent is None:
 		print("[system] Likes trigger unavailable: LikeEvent is not supported by this TikTokLive version", flush=True)
 
